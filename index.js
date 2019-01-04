@@ -2,20 +2,38 @@ const IlpPacket = require('ilp-packet')
 
 class PluginMultiplexChild {
   constructor (opts) {
-    this.id = opts.id
-    this.parent = opts.parent
+    this._id = opts.id
+    this._parent = opts.parent
   }
 
-  async connect () {
-    // no-op
-    return
+  isConnected () {
+    return this._parent.isConnected()
+  }
+
+  connect () {
+    return this._parent.connect()
+  }
+
+  disconnect () {
+    return this._parent._removeChild(this._id)
+  }
+
+  sendData (data) {
+    return this._parent._sendData(this._id, data)
+  }
+
+  registerDataHandler (handler) {
+    this._dataHandler = handler
+  }
+
+  deregisterDataHandler () {
+    this._dataHandler = null
   }
 }
 
 class PluginMultiplexParent {
   constructor (opts) {
-    this.upstream = opts.upstream
-    this.children = {}
+    this._children = {}
   }
 
   _generateId () {
@@ -23,23 +41,67 @@ class PluginMultiplexParent {
     return Math.random().substring(2)
   }
 
-  getPlugin ({ id: _id }) {
+  _sendData (id, data) {
+    return this._handleData(data)
+  }
+
+  _removeChild (id) {
+    delete this._children[id]
+  }
+
+  registerDataHandler (handler) {
+    this._handleData = handler
+  }
+
+  deregisterDataHandler () {
+    this._handleData = null
+  }
+
+  getChild ({ id: _id } = {}) {
     const id = _id || this._generateId()
-    this.children[id] = new PluginMultiplexChild({
+    this._children[id] = new PluginMultiplexChild({
       parent: this,
       id
     })
 
-    return this.children[id]
+    return this._children[id]
+  }
+
+  sendData () {
+    const parsed = IlpPacket.deserializeIlpPrepare(data)
+    const id = parsed.destinationAccount
+      .substring(this._ildcp.clientAddress.length)
+      .split('.')[0]
+
+    const child = this._children[id]
+    if (!child) {
+      return IlpPacket.serializeReject({
+        code: 'F02',
+        triggeredBy: this._ildcp.clientAddress,
+        message: 'no child with id. id=' + id
+      })
+    }
+
+    return child._dataHandler(data)
   }
 
   async connect () {
-    await this.upstream.connect()    
-    this.upstream.registerDataHandler(data => {
-    })
+    if (this._ildcp) {
+      return
+    }
+
+    this._ildcp = await Ildcp.fetch(this._handleData)
   }
 
-  disconnect () {
-    return this.upstream.disconnect()
+  async disconnect () {
+    this._ildcp = null
+  }
+
+  isConnected () {
+    return !!this._ildcp
   }
 }
+
+PluginMultiplexParent.PluginMultiplexChild = PluginMultiplexChild
+PluginMultiplexParent.PluginMultiplexParent = PluginMultiplexParent
+module.exports = PluginMultiplexParent
