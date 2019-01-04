@@ -1,0 +1,11 @@
+{
+  "name": "ilp-plugin-multiplex",
+  "version": "1.0.0",
+  "description": "Create multiple children of an ILP plugin in the same process",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}
