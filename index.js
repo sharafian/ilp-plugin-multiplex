@@ -49,12 +49,14 @@ class PluginMultiplexParent {
 
   _generateId () {
     // TODO: less jank?
-    return Math.random().substring(2)
+    return String(Math.random()).substring(2)
   }
 
   _sendData (id, data) {
     const parsed = IlpPacket.deserializeIlpPrepare(data)
-    if (parsed.destinationAddress === 'peer.config') {
+    console.log('got prepare from child', parsed)
+    if (parsed.destination === 'peer.config') {
+      console.log('got ildcp from child')
       return Ildcp.serializeIldcpResponse({
         clientAddress: `${this._ildcp.clientAddress}.${id}`,
         assetScale: this._ildcp.assetScale,
@@ -78,7 +80,7 @@ class PluginMultiplexParent {
 
       return this._handleData(data)
     } catch (e) {
-      return IlpPacket.errorToReject(e)
+      return IlpPacket.errorToReject(this._ildcp.clientAddress, e)
     }
   }
 
@@ -104,15 +106,15 @@ class PluginMultiplexParent {
     return this._children[id]
   }
 
-  sendData () {
+  async sendData (data) {
     const parsed = IlpPacket.deserializeIlpPrepare(data)
-    const id = parsed.destinationAccount
+    const id = parsed.destination
       .substring(this._ildcp.clientAddress.length)
       .split('.')[0]
 
     const child = this._children[id]
     if (!child) {
-      return IlpPacket.serializeReject({
+      return IlpPacket.serializeIlpReject({
         code: 'F02',
         triggeredBy: this._ildcp.clientAddress,
         message: 'no child with id. id=' + id
