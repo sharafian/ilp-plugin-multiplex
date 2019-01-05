@@ -16,7 +16,7 @@ class PluginMultiplexChild {
     return this._parent.connect()
   }
 
-  disconnect () {
+  async disconnect () {
     return this._parent._removeChild(this._id)
   }
 
