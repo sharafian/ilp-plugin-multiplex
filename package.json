@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "ilp-packet": "^3.0.8"
+    "ilp-packet": "^3.0.8",
+    "ilp-protocol-ildcp": "^2.0.1"
   }
 }
