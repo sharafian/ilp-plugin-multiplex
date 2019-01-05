@@ -1,4 +1,6 @@
 const IlpPacket = require('ilp-packet')
+const Ildcp = require('ilp-protocol-ildcp')
+const TokenBucket = require('./src/token-bucket')
 
 class PluginMultiplexChild {
   constructor (opts) {
@@ -32,8 +34,17 @@ class PluginMultiplexChild {
 }
 
 class PluginMultiplexParent {
-  constructor (opts) {
+  constructor (opts = {}) {
     this._children = {}
+    this._maxPacketAmount = Number(opts.maxPacketAmount)
+    this._throughput = Number(opts.throughput)
+
+    if (this._throughput) {
+      this._bucket = new TokenBucket({
+        refillPeriod: 1000,
+        refillCount: this._throughput
+      })
+    }
   }
 
   _generateId () {
@@ -42,7 +53,33 @@ class PluginMultiplexParent {
   }
 
   _sendData (id, data) {
-    return this._handleData(data)
+    const parsed = IlpPacket.deserializeIlpPrepare(data)
+    if (parsed.destinationAddress === 'peer.config') {
+      return Ildcp.serializeIldcpResponse({
+        clientAddress: `${this._ildcp.clientAddress}.${id}`,
+        assetScale: this._ildcp.assetScale,
+        assetCode: this._ildcp.assetCode
+      })
+    }
+
+    try {
+      if (this._maxPacketAmount &&
+        (Number(parsed.amount) > this._maxPacketAmount)) {
+        throw new IlpPacket.Errors.AmountTooLargeError('amount too large', {
+          receivedAmount: parsed.amount,
+          maximumAmount: String(this._maxPacketAmount)
+        })
+      }
+
+      if (this._bucket && !this._bucket.take(parsed.amount)) {
+        throw new IlpPacket.Errors
+          .InsufficientLiquidityError('insufficient liquidity')
+      }
+
+      return this._handleData(data)
+    } catch (e) {
+      return IlpPacket.errorToReject(e)
+    }
   }
 
   _removeChild (id) {
