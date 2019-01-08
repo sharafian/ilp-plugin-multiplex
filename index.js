@@ -110,7 +110,7 @@ class PluginMultiplexParent {
     const parsed = IlpPacket.deserializeIlpPrepare(data)
     const id = parsed.destination
       .substring(this._ildcp.clientAddress.length)
-      .split('.')[0]
+      .split('.')[1]
 
     const child = this._children[id]
     if (!child) {
